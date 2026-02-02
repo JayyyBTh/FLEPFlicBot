@@ -17,5 +17,6 @@ export const KEYWORDS = [
   "Bitcoin",
   "investi",
   "soup",
-  "remove joined group",	
+  "remove joined group",
+  "Message de Test",	
 ];
