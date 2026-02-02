@@ -7,19 +7,48 @@ export interface Env {
 
 type TgUpdate = any;
 
+function normalizeForMatch(s: string): string {
+  return s
+    // Normalize compatibility forms (full-width, weird forms, etc.)
+    .normalize("NFKC")
+    // Remove common invisible / bidi / formatting chars spammers use
+    .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, "")
+    // Remove control characters (except newline/tab if you want)
+    .replace(/[\u0000-\u001F\u007F]/g, "")
+    // Normalize accents away (é -> e). Optional but recommended for French.
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    // Lowercase
+    .toLowerCase()
+    // Collapse whitespace
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function escapeRegex(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function shouldDelete(text: string): boolean {
-  const t = text.toLowerCase();
+function shouldDelete(text: string): { matched: boolean; keyword?: string } {
+  const t = normalizeForMatch(text);
 
-  return KEYWORDS.some((k) => {
-    const kw = k.toLowerCase();
+  for (const rawKw of KEYWORDS) {
+    const kw = normalizeForMatch(rawKw);
+
+    // whole-word match on normalized text
     const re = new RegExp(`\\b${escapeRegex(kw)}\\b`, "i");
-    return re.test(t);
-  });
+    if (re.test(t)) return { matched: true, keyword: rawKw };
+
+    // simple plural allowance for single words (crypto -> cryptos)
+    if (!kw.includes(" ")) {
+      const rePlural = new RegExp(`\\b${escapeRegex(kw)}s\\b`, "i");
+      if (rePlural.test(t)) return { matched: true, keyword: rawKw + " (plural)" };
+    }
+  }
+
+  return { matched: false };
 }
+
 
 async function tgCall(env: Env, method: string, payload: Record<string, unknown>) {
   await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/${method}`, {
@@ -47,8 +76,9 @@ export default {
     const text: string = msg.text ?? msg.caption ?? "";
     if (!text) return new Response("OK", { status: 200 });
 
-    if (shouldDelete(text)) {
-      await tgCall(env, "deleteMessage", {
+    const res = shouldDelete(text);
+    if (res.matched) {
+        await tgCall(env, "deleteMessage", {
         chat_id: msg.chat.id,
         message_id: msg.message_id,
       });
