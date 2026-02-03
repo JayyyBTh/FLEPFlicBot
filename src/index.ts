@@ -7,15 +7,84 @@ export interface Env {
 
 type TgUpdate = any;
 
+// Common Cyrillic/Greek confusables spammers use to fake Latin words.
+// Keep this small + targeted; expand if you see new bypasses.
+const CONFUSABLES: Record<string, string> = {
+  // Cyrillic (lower)
+  "а": "a", // U+0430
+  "е": "e", // U+0435
+  "о": "o", // U+043E
+  "р": "p", // U+0440
+  "с": "c", // U+0441
+  "х": "x", // U+0445
+  "у": "y", // U+0443
+  "к": "k", // U+043A
+  "м": "m", // U+043C
+  "т": "t", // U+0442
+  "н": "h", // U+043D (looks like h)
+  "і": "i", // U+0456
+  "ї": "i", // U+0457 (close enough for spam)
+  "ј": "j", // U+0458
+
+  // Cyrillic (upper)
+  "А": "a",
+  "Е": "e",
+  "О": "o",
+  "Р": "p",
+  "С": "c",
+  "Х": "x",
+  "У": "y",
+  "К": "k",
+  "М": "m",
+  "Т": "t",
+  "Н": "h",
+  "І": "i",
+  "Ї": "i",
+  "Ј": "j",
+
+  // Greek (some common lookalikes)
+  "Α": "a",
+  "Β": "b",
+  "Ε": "e",
+  "Ζ": "z",
+  "Η": "h",
+  "Ι": "i",
+  "Κ": "k",
+  "Μ": "m",
+  "Ν": "n",
+  "Ο": "o",
+  "Ρ": "p",
+  "Τ": "t",
+  "Υ": "y",
+  "Χ": "x",
+  "α": "a",
+  "β": "b",
+  "ε": "e",
+  "ι": "i",
+  "κ": "k",
+  "μ": "m",
+  "ν": "n",
+  "ο": "o",
+  "ρ": "p",
+  "τ": "t",
+  "υ": "y",
+  "χ": "x",
+};
+
+function foldConfusables(s: string): string {
+  // Greek: \u0370-\u03FF, Cyrillic: \u0400-\u04FF
+  return s.replace(/[\u0370-\u03FF\u0400-\u04FF]/g, (ch) => CONFUSABLES[ch] ?? ch);
+}
+
 function normalizeForMatch(s: string): string {
-  return s
-    // Normalize compatibility forms (full-width, weird forms, etc.)
+  return foldConfusables(s)
+    // Normalize compatibility forms (full-width, etc.)
     .normalize("NFKC")
     // Remove common invisible / bidi / formatting chars spammers use
     .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, "")
     // Remove control characters (except newline/tab if you want)
     .replace(/[\u0000-\u001F\u007F]/g, "")
-    // Normalize accents away (é -> e). Optional but recommended for French.
+    // Normalize accents away (é -> e)
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     // Lowercase
@@ -29,26 +98,36 @@ function escapeRegex(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// Unicode-aware "whole word" boundary:
+// JS \b is ASCII-centric; this uses Unicode properties instead.
+function makeWholeWordRe(kw: string): RegExp {
+  // Treat letters+numbers as word chars; underscore too (optional).
+  // Negative lookbehind/lookahead supported in modern runtimes (Cloudflare Workers is fine).
+  return new RegExp(
+    `(?<![\\p{L}\\p{N}_])${escapeRegex(kw)}(?![\\p{L}\\p{N}_])`,
+    "iu"
+  );
+}
+
 function shouldDelete(text: string): { matched: boolean; keyword?: string } {
   const t = normalizeForMatch(text);
 
   for (const rawKw of KEYWORDS) {
     const kw = normalizeForMatch(rawKw);
 
-    // whole-word match on normalized text
-    const re = new RegExp(`\\b${escapeRegex(kw)}\\b`, "i");
-    if (re.test(t)) return { matched: true, keyword: rawKw };
+    // Whole-word match on normalized text (Unicode-aware)
+    if (makeWholeWordRe(kw).test(t)) return { matched: true, keyword: rawKw };
 
     // simple plural allowance for single words (crypto -> cryptos)
     if (!kw.includes(" ")) {
-      const rePlural = new RegExp(`\\b${escapeRegex(kw)}s\\b`, "i");
-      if (rePlural.test(t)) return { matched: true, keyword: rawKw + " (plural)" };
+      if (makeWholeWordRe(kw + "s").test(t)) {
+        return { matched: true, keyword: rawKw + " (plural)" };
+      }
     }
   }
 
   return { matched: false };
 }
-
 
 async function tgCall(env: Env, method: string, payload: Record<string, unknown>) {
   await fetch(`https://api.telegram.org/bot${env.BOT_TOKEN}/${method}`, {
@@ -78,7 +157,7 @@ export default {
 
     const res = shouldDelete(text);
     if (res.matched) {
-        await tgCall(env, "deleteMessage", {
+      await tgCall(env, "deleteMessage", {
         chat_id: msg.chat.id,
         message_id: msg.message_id,
       });
@@ -87,4 +166,3 @@ export default {
     return new Response("OK", { status: 200 });
   },
 };
-
