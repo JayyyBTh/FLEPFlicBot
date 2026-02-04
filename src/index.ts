@@ -76,17 +76,23 @@ function foldConfusables(s: string): string {
   return s.replace(/[\u0370-\u03FF\u0400-\u04FF]/g, (ch) => CONFUSABLES[ch] ?? ch);
 }
 
+/**
+ * Strong normalization:
+ * - folds common Cyrillic/Greek confusables
+ * - strips ALL format/invisible chars (\p{Cf}) including bidi, variation selectors, etc.
+ * - strips ALL combining marks (\p{M}) so French accents won't matter (é == e)
+ * - keeps Unicode-aware word-boundary matching stable
+ */
 function normalizeForMatch(s: string): string {
   return foldConfusables(s)
-    // Normalize compatibility forms (full-width, etc.)
-    .normalize("NFKC")
-    // Remove common invisible / bidi / formatting chars spammers use
-    .replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, "")
-    // Remove control characters (except newline/tab if you want)
+    // Decompose to base letters + combining marks so we can strip accents reliably
+    .normalize("NFKD")
+    // Remove all format/invisible characters (ZW*, bidi, variation selectors, etc.)
+    .replace(/\p{Cf}/gu, "")
+    // Remove all combining marks (accents/diacritics across all blocks)
+    .replace(/\p{M}/gu, "")
+    // Remove control characters
     .replace(/[\u0000-\u001F\u007F]/g, "")
-    // Normalize accents away (é -> e)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
     // Lowercase
     .toLowerCase()
     // Collapse whitespace
@@ -98,11 +104,8 @@ function escapeRegex(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Unicode-aware "whole word" boundary:
-// JS \b is ASCII-centric; this uses Unicode properties instead.
+// Unicode-aware "whole word" boundary (instead of ASCII-centric \b)
 function makeWholeWordRe(kw: string): RegExp {
-  // Treat letters+numbers as word chars; underscore too (optional).
-  // Negative lookbehind/lookahead supported in modern runtimes (Cloudflare Workers is fine).
   return new RegExp(
     `(?<![\\p{L}\\p{N}_])${escapeRegex(kw)}(?![\\p{L}\\p{N}_])`,
     "iu"
