@@ -85,20 +85,17 @@ function foldConfusables(s: string): string {
  */
 function normalizeForMatch(s: string): string {
   return foldConfusables(s)
-    // Decompose to base letters + combining marks so we can strip accents reliably
     .normalize("NFKD")
-    // Remove all format/invisible characters (ZW*, bidi, variation selectors, etc.)
+    // remove all format/invisible chars (bidi, variation selectors, etc.)
     .replace(/\p{Cf}/gu, "")
-    // Remove all combining marks (accents/diacritics across all blocks)
+    // remove all diacritics (French accents => base letters)
     .replace(/\p{M}/gu, "")
-    // Remove control characters
-    .replace(/[\u0000-\u001F\u007F]/g, "")
-    // Lowercase
+    // IMPORTANT: turn ANY non-letter/number into a space (covers \n, \r, tabs, punctuation, weird separators)
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
     .toLowerCase()
-    // Collapse whitespace
-    .replace(/\s+/g, " ")
     .trim();
 }
+
 
 function escapeRegex(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -106,8 +103,10 @@ function escapeRegex(s: string) {
 
 // Unicode-aware "whole word" boundary (instead of ASCII-centric \b)
 function makeWholeWordRe(kw: string): RegExp {
+  // Match kw as a whole “token/phrase” delimited by non-letters/non-numbers or string ends.
+  // No lookbehind => works in more JS runtimes.
   return new RegExp(
-    `(?<![\\p{L}\\p{N}_])${escapeRegex(kw)}(?![\\p{L}\\p{N}_])`,
+    `(?:^|[^\\p{L}\\p{N}_])${escapeRegex(kw)}(?:$|[^\\p{L}\\p{N}_])`,
     "iu"
   );
 }
