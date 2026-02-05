@@ -71,10 +71,10 @@ const CONFUSABLES: Record<string, string> = {
   "χ": "x",
 
   // Armenian (common spam confusables)
-  "ն": "n", // U+0576 (looks like Latin n)
-  "ո": "o", // U+0578 (looks like Latin o)
+  "ն": "u", // U+0576 (looks like Latin u)
+  "ո": "n", // U+0578 (looks like Latin n)
   "օ": "o", // U+0585 (looks like Latin o)
-  "ս": "s", // U+057D (looks like Latin s)
+  "ս": "u", // U+057D (looks like Latin u)
   "հ": "h", // U+0570 (often used as h-ish)
 };
 
