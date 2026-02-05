@@ -15,10 +15,11 @@ export const KEYWORDS = [
   "profits",
   "income",
   "earn",
-  "Bitcoin",
   "bitcoin",
   "investi",
   "soup",
   "remove joined group",
-  "Message de Test",	
+  "£",
+  "€",
+  "$",	
 ];
