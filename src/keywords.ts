@@ -21,5 +21,6 @@ export const KEYWORDS = [
   "remove joined group",
   "gbp",
   "eur",
-  "jpy",	
+  "jpy",
+  "usd",	
 ];
