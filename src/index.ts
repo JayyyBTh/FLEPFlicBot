@@ -76,6 +76,12 @@ const CONFUSABLES: Record<string, string> = {
   "օ": "o", // U+0585 (looks like Latin o)
   "ս": "u", // U+057D (looks like Latin u)
   "հ": "h", // U+0570 (often used as h-ish)
+
+// Latin dotless i (common bypass)
+"ı": "i",
+"İ": "i",
+
+
 };
 
 function foldConfusables(s: string): string {
