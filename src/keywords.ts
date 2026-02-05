@@ -19,7 +19,7 @@ export const KEYWORDS = [
   "investi",
   "soup",
   "remove joined group",
-  "£",
-  "€",
-  "$",	
+  "gbp",
+  "eur",
+  "jpy",	
 ];
