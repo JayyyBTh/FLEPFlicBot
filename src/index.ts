@@ -69,11 +69,23 @@ const CONFUSABLES: Record<string, string> = {
   "τ": "t",
   "υ": "y",
   "χ": "x",
+
+  // Armenian (common spam confusables)
+  "ն": "n", // U+0576 (looks like Latin n)
+  "ո": "o", // U+0578 (looks like Latin o)
+  "օ": "o", // U+0585 (looks like Latin o)
+  "ս": "s", // U+057D (looks like Latin s)
+  "հ": "h", // U+0570 (often used as h-ish)
 };
 
 function foldConfusables(s: string): string {
-  // Greek: \u0370-\u03FF, Cyrillic: \u0400-\u04FF
-  return s.replace(/[\u0370-\u03FF\u0400-\u04FF]/g, (ch) => CONFUSABLES[ch] ?? ch);
+  // Greek: \u0370-\u03FF
+  // Cyrillic (+ext): \u0400-\u052F, \u1C80-\u1C8F, \u2DE0-\u2DFF, \uA640-\uA69F
+  // Armenian: \u0530-\u058F
+  return s.replace(
+    /[\u0370-\u03FF\u0400-\u052F\u1C80-\u1C8F\u2DE0-\u2DFF\uA640-\uA69F\u0530-\u058F]/g,
+    (ch) => CONFUSABLES[ch] ?? ch
+  );
 }
 
 /**
