@@ -83,6 +83,7 @@ function foldConfusables(s: string): string {
  * - strips ALL combining marks (\p{M}) so French accents won't matter (é == e)
  * - keeps Unicode-aware word-boundary matching stable
  */
+
 function normalizeForMatch(s: string): string {
   return foldConfusables(s)
     .normalize("NFKD")
@@ -90,6 +91,13 @@ function normalizeForMatch(s: string): string {
     .replace(/\p{Cf}/gu, "")
     // remove all diacritics (French accents => base letters)
     .replace(/\p{M}/gu, "")
+
+    // preserve currencies as tokens before stripping punctuation
+    .replace(/€/g, " eur ")
+    .replace(/\$/g, " usd ")
+    .replace(/£/g, " gbp ")
+    .replace(/¥/g, " jpy ")
+
     // IMPORTANT: turn ANY non-letter/number into a space (covers \n, \r, tabs, punctuation, weird separators)
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .toLowerCase()
