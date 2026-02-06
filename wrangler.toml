@@ -9,5 +9,5 @@ bindings = [
 ]
 
 [[migrations]]
-tag = "v1"
-new_classes = ["UserCounter"]
+tag = "v2"
+new_sqlite_classes = ["UserCounter"]
