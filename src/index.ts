@@ -1,5 +1,10 @@
 import { KEYWORDS } from "./keywords";
 
+const ALWAYS_MODERATE_USER_IDS = new Set<number>([
+  1230480769 // RemoveJoinGrpMsgBot
+]);
+
+
 export interface Env {
   BOT_TOKEN: string;
   WEBHOOK_SECRET: string;
@@ -229,8 +234,10 @@ if (from.is_bot) return new Response("OK", { status: 200 }); // optional
 
 const seenCount = await bumpUserSeenCount(env, from.id);
 
-// Only enforce on the first 5 messages we ever see from that user
-if (seenCount <= 5) {
+// Only enforce on the first 5 messages we ever see from that user unless always moderated
+const alwaysModerate = ALWAYS_MODERATE_USER_IDS.has(from.id);
+
+if (alwaysModerate || seenCount <= 5) {
   const res = shouldDelete(text);
 
   if (res.matched) {
