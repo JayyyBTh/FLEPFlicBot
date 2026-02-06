@@ -3,9 +3,33 @@ import { KEYWORDS } from "./keywords";
 export interface Env {
   BOT_TOKEN: string;
   WEBHOOK_SECRET: string;
+  LOG_CHANNEL_ID: string;
+  USER_COUNTER: DurableObjectNamespace;
 }
 
 type TgUpdate = any;
+
+export class UserCounter {
+  state: DurableObjectState;
+
+  constructor(state: DurableObjectState) {
+    this.state = state;
+  }
+
+  async fetch(req: Request): Promise<Response> {
+    const url = new URL(req.url);
+
+    if (url.pathname !== "/inc") {
+      return new Response("Not found", { status: 404 });
+    }
+
+    const current = (await this.state.storage.get<number>("count")) ?? 0;
+    const next = current + 1;
+    await this.state.storage.put("count", next);
+
+    return Response.json({ count: next });
+  }
+}
 
 // Common Cyrillic/Greek confusables spammers use to fake Latin words.
 // Keep this small + targeted; expand if you see new bypasses.
@@ -165,6 +189,22 @@ async function tgCall(env: Env, method: string, payload: Record<string, unknown>
   });
 }
 
+async function bumpUserSeenCount(env: Env, userId: number): Promise<number> {
+  const id = env.USER_COUNTER.idFromName(String(userId));
+  const stub = env.USER_COUNTER.get(id);
+  const res = await stub.fetch("https://do/inc");
+  const data = (await res.json()) as { count: number };
+  return data.count;
+}
+
+async function sendLog(env: Env, text: string) {
+  await tgCall(env, "sendMessage", {
+    chat_id: env.LOG_CHANNEL_ID,
+    text,
+    disable_web_page_preview: true,
+  });
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     if (req.method !== "POST") return new Response("OK", { status: 200 });
@@ -183,13 +223,46 @@ export default {
     const text: string = msg.text ?? msg.caption ?? "";
     if (!text) return new Response("OK", { status: 200 });
 
-    const res = shouldDelete(text);
-    if (res.matched) {
-      await tgCall(env, "deleteMessage", {
-        chat_id: msg.chat.id,
-        message_id: msg.message_id,
-      });
-    }
+    const from = msg.from;
+if (!from?.id) return new Response("OK", { status: 200 });
+if (from.is_bot) return new Response("OK", { status: 200 }); // optional
+
+const seenCount = await bumpUserSeenCount(env, from.id);
+
+// Only enforce on the first 5 messages we ever see from that user
+if (seenCount <= 5) {
+  const res = shouldDelete(text);
+
+  if (res.matched) {
+    await tgCall(env, "deleteMessage", {
+      chat_id: msg.chat.id,
+      message_id: msg.message_id,
+    });
+
+    const chatLabel =
+      msg.chat?.title ??
+      (msg.chat?.username ? `@${msg.chat.username}` : String(msg.chat?.id));
+
+    const userLabel =
+      from.username
+        ? `@${from.username}`
+        : `${from.first_name ?? ""} ${from.last_name ?? ""}`.trim() || String(from.id);
+
+    const preview = text.length > 200 ? text.slice(0, 200) + "…" : text;
+
+    await sendLog(
+      env,
+      [
+        `🧹 Deleted (probation ${seenCount}/5)`,
+        `Chat: ${chatLabel}`,
+        `User: ${userLabel} (id ${from.id})`,
+        `Keyword: ${res.keyword ?? "?"}`,
+        `Text: ${preview}`,
+      ].join("\n")
+    );
+  }
+}
+
 
     return new Response("OK", { status: 200 });
   },

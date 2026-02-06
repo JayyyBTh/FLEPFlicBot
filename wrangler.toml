@@ -1,3 +1,13 @@
 name = "flep-flic-bot"
 main = "src/index.ts"
 compatibility_date = "2026-02-02"
+[vars]
+LOG_CHANNEL_ID = "@botspottingepfl"
+[durable_objects]
+bindings = [
+  { name = "USER_COUNTER", class_name = "UserCounter" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["UserCounter"]
