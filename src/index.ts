@@ -230,7 +230,6 @@ export default {
 
     const from = msg.from;
 if (!from?.id) return new Response("OK", { status: 200 });
-if (from.is_bot) return new Response("OK", { status: 200 }); // optional
 
 const seenCount = await bumpUserSeenCount(env, from.id);
 
