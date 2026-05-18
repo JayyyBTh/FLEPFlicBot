@@ -250,26 +250,6 @@ if (startsWithBotCommand) {
     chat_id: msg.chat.id,
     message_id: msg.message_id,
   });
-
-  const chatLabel =
-    msg.chat?.title ??
-    (msg.chat?.username ? `@${msg.chat.username}` : String(msg.chat?.id));
-  const userLabel =
-    from.username
-      ? `@${from.username}`
-      : `${from.first_name ?? ""} ${from.last_name ?? ""}`.trim() || String(from.id);
-  const preview = text.length > 200 ? text.slice(0, 200) + "…" : text;
-
-  await sendLog(
-    env,
-    [
-      `🧹 Deleted slash command`,
-      `Chat: ${chatLabel}`,
-      `User: ${userLabel} (id ${from.id})`,
-      `Text: ${preview}`,
-    ].join("\n")
-  );
-
   return new Response("OK", { status: 200 });
 }
 
