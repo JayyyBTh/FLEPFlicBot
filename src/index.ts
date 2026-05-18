@@ -236,6 +236,43 @@ const seenCount = await bumpUserSeenCount(env, from.id);
 // Only enforce on the first 5 messages we ever see from that user unless always moderated
 const alwaysModerate = ALWAYS_MODERATE_USER_IDS.has(from.id);
 
+// Always delete real Telegram bot commands at the start of the message,
+// regardless of probation / always-moderate state. We trust Telegram's own
+// parser (entities of type "bot_command") so that strings like "1/2", "/ a",
+// " / " are NOT treated as commands.
+const entities = msg.entities ?? msg.caption_entities ?? [];
+const startsWithBotCommand = entities.some(
+  (e: any) => e?.type === "bot_command" && e?.offset === 0,
+);
+
+if (startsWithBotCommand) {
+  await tgCall(env, "deleteMessage", {
+    chat_id: msg.chat.id,
+    message_id: msg.message_id,
+  });
+
+  const chatLabel =
+    msg.chat?.title ??
+    (msg.chat?.username ? `@${msg.chat.username}` : String(msg.chat?.id));
+  const userLabel =
+    from.username
+      ? `@${from.username}`
+      : `${from.first_name ?? ""} ${from.last_name ?? ""}`.trim() || String(from.id);
+  const preview = text.length > 200 ? text.slice(0, 200) + "…" : text;
+
+  await sendLog(
+    env,
+    [
+      `🧹 Deleted slash command`,
+      `Chat: ${chatLabel}`,
+      `User: ${userLabel} (id ${from.id})`,
+      `Text: ${preview}`,
+    ].join("\n")
+  );
+
+  return new Response("OK", { status: 200 });
+}
+
 if (alwaysModerate || seenCount <= 5) {
   const res = shouldDelete(text);
 
