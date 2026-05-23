@@ -1,10 +1,5 @@
 import { KEYWORDS } from "./keywords";
 
-const ALWAYS_MODERATE_USER_IDS = new Set<number>([
-  1230480769 // RemoveJoinGrpMsgBot
-]);
-
-
 export interface Env {
   BOT_TOKEN: string;
   WEBHOOK_SECRET: string;
@@ -225,6 +220,17 @@ export default {
     const msg = update.message ?? update.edited_message;
     if (!msg) return new Response("OK", { status: 200 });
 
+    // Suppress join/leave system messages (replaces RemoveJoinGroupMsgBot).
+    // Telegram emits these as messages with new_chat_members / left_chat_member
+    // and no text/caption — must run before the text early-return below.
+    if (msg.new_chat_members || msg.left_chat_member) {
+      await tgCall(env, "deleteMessage", {
+        chat_id: msg.chat.id,
+        message_id: msg.message_id,
+      });
+      return new Response("OK", { status: 200 });
+    }
+
     const text: string = msg.text ?? msg.caption ?? "";
     if (!text) return new Response("OK", { status: 200 });
 
@@ -233,13 +239,10 @@ if (!from?.id) return new Response("OK", { status: 200 });
 
 const seenCount = await bumpUserSeenCount(env, from.id);
 
-// Only enforce on the first 5 messages we ever see from that user unless always moderated
-const alwaysModerate = ALWAYS_MODERATE_USER_IDS.has(from.id);
-
 // Always delete real Telegram bot commands at the start of the message,
-// regardless of probation / always-moderate state. We trust Telegram's own
-// parser (entities of type "bot_command") so that strings like "1/2", "/ a",
-// " / " are NOT treated as commands.
+// regardless of probation state. We trust Telegram's own parser (entities of
+// type "bot_command") so that strings like "1/2", "/ a", " / " are NOT
+// treated as commands.
 const entities = msg.entities ?? msg.caption_entities ?? [];
 const startsWithBotCommand = entities.some(
   (e: any) => e?.type === "bot_command" && e?.offset === 0,
@@ -253,7 +256,7 @@ if (startsWithBotCommand) {
   return new Response("OK", { status: 200 });
 }
 
-if (alwaysModerate || seenCount <= 5) {
+if (seenCount <= 5) {
   const res = shouldDelete(text);
 
   if (res.matched) {
