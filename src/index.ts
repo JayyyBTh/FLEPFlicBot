@@ -253,6 +253,23 @@ if (startsWithBotCommand) {
   return new Response("OK", { status: 200 });
 }
 
+// Intercept RemoveJoinGroupMsgBot credit messages (the "ad-free license" promo
+// it injects). The bot is admin so the always-moderate path doesn't get a
+// chance to delete its own messages — match on the credit text instead.
+if (/remove joined group messages/i.test(text)) {
+  await tgCall(env, "deleteMessage", {
+    chat_id: msg.chat.id,
+    message_id: msg.message_id,
+  });
+
+  const chatLabel =
+    msg.chat?.title ??
+    (msg.chat?.username ? `@${msg.chat.username}` : String(msg.chat?.id));
+
+  await sendLog(env, `🤖 clanker rights suppressed in ${chatLabel}`);
+  return new Response("OK", { status: 200 });
+}
+
 if (alwaysModerate || seenCount <= 5) {
   const res = shouldDelete(text);
 
